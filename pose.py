@@ -91,7 +91,7 @@ def main():
 
             cv2.putText(image, "FPS: %.0f" % fps, (7, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 1, cv2.LINE_AA)
             cv2.imshow('MediaPipe OSC Pose', image)
-            
+
             if cv2.waitKey(5) & 0xFF == 27:
                 break
     finally:
