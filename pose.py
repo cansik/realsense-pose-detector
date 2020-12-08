@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import cv2
 import mediapipe as mp
@@ -30,6 +31,7 @@ def send_pose(client: udp_client,
     msg = builder.build()
     client.send(msg)
 
+
 def main():
     # read arguments
     parser = argparse.ArgumentParser()
@@ -53,6 +55,8 @@ def main():
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 
     profile = pipeline.start(config)
+
+    prev_frame_time = 0
 
     try:
         while True:
@@ -80,7 +84,14 @@ def main():
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             mp_drawing.draw_landmarks(
                 image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
+            current_time = time.time()
+            fps = 1 / (current_time - prev_frame_time)
+            prev_frame_time = current_time
+
+            cv2.putText(image, "FPS: %.0f" % fps, (7, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 1, cv2.LINE_AA)
             cv2.imshow('MediaPipe OSC Pose', image)
+            
             if cv2.waitKey(5) & 0xFF == 27:
                 break
     finally:
