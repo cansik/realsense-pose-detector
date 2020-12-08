@@ -2,9 +2,11 @@ import argparse
 
 import cv2
 import mediapipe as mp
+import numpy as np
 from mediapipe.framework.formats import landmark_pb2
 from pythonosc import udp_client
 from pythonosc.osc_message_builder import OscMessageBuilder
+import pyrealsense2 as rs
 
 from utils import add_default_args
 
@@ -28,7 +30,6 @@ def send_pose(client: udp_client,
     msg = builder.build()
     client.send(msg)
 
-
 def main():
     # read arguments
     parser = argparse.ArgumentParser()
@@ -44,33 +45,47 @@ def main():
 
     pose = mp_pose.Pose(
         min_detection_confidence=args.min_detection_confidence, min_tracking_confidence=args.min_tracking_confidence)
-    cap = cv2.VideoCapture(args.device)
-    while cap.isOpened():
-        success, image = cap.read()
-        if not success:
-            break
 
-        # Flip the image horizontally for a later selfie-view display, and convert
-        # the BGR image to RGB.
-        image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
-        # To improve performance, optionally mark the image as not writeable to
-        # pass by reference.
-        image.flags.writeable = False
-        results = pose.process(image)
+    # create realsense pipeline
+    pipeline = rs.pipeline()
 
-        # send the pose over osc
-        send_pose(client, results.pose_landmarks)
+    config = rs.config()
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 
-        # Draw the pose annotation on the image.
-        image.flags.writeable = True
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        mp_drawing.draw_landmarks(
-            image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-        cv2.imshow('MediaPipe OSC Pose', image)
-        if cv2.waitKey(5) & 0xFF == 27:
-            break
-    pose.close()
-    cap.release()
+    profile = pipeline.start(config)
+
+    try:
+        while True:
+            frames = pipeline.wait_for_frames()
+            color_frame = frames.get_color_frame()
+
+            if not color_frame:
+                break
+
+            image = np.asanyarray(color_frame.get_data())
+
+            # Flip the image horizontally for a later selfie-view display, and convert
+            # the BGR image to RGB.
+            image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
+            # To improve performance, optionally mark the image as not writeable to
+            # pass by reference.
+            image.flags.writeable = False
+            results = pose.process(image)
+
+            # send the pose over osc
+            send_pose(client, results.pose_landmarks)
+
+            # Draw the pose annotation on the image.
+            image.flags.writeable = True
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            mp_drawing.draw_landmarks(
+                image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            cv2.imshow('MediaPipe OSC Pose', image)
+            if cv2.waitKey(5) & 0xFF == 27:
+                break
+    finally:
+        pose.close()
+        pipeline.stop()
 
 
 if __name__ == "__main__":
