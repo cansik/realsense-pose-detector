@@ -1,4 +1,6 @@
-mediapipe==0.8.7
+--extra-index-url https://github.com/cansik/pyrealsense2-macosx/releases
+
+mediapipe==0.8.7.1
 opencv-python
 python-osc
 pyrealsense2
